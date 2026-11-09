@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TiempoLibre Delivery — Demo comercial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  :root {
+    --primary: #00B5E2;
+    --primary-dark: #0096BD;
+    --dark: #0B1E2D;
+  }
+  .sidebar { background: linear-gradient(180deg, #0B1E2D 0%, #0d2438 100%); }
+  .nav-item { transition: all 0.2s; border-radius: 10px; }
+  .nav-item:hover { background: rgba(0,181,226,0.15); }
+  .nav-item.active { background: rgba(0,181,226,0.2); border-left: 3px solid #00B5E2; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .badge-pendiente { background:#fef9c3; color:#854d0e; border:1px solid #fde047; }
+  .badge-asignado { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; }
+  .badge-en_ruta { background:#f3e8ff; color:#6b21a8; border:1px solid #d8b4fe; }
+  .badge-entregado { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+  .badge-cancelado { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+  .wallet-card { background: linear-gradient(135deg, #00B5E2 0%, #e85d04 100%); }
+  .block-cell { height: 10px; border-radius: 3px; transition: all 0.3s; }
+  .block-used { background: #e2e8f0; }
+  .block-rem { background: #00B5E2; }
+  .demo-banner { background: linear-gradient(90deg, #0B1E2D, #00B5E2); }
+  .tag-demo { background: rgba(255,255,255,0.2); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  .stat-card { border-radius: 14px; border: 1px solid #f1f5f9; background: white; transition: box-shadow 0.2s; }
+  .stat-card:hover { box-shadow: 0 4px 20px rgba(0,181,226,0.12); }
+  .order-row:hover { background: #f8fafc; }
+  .map-container { border-radius: 12px; overflow: hidden; height: 300px; }
+  #map { height: 100%; width: 100%; }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .pulse-dot { width:8px; height:8px; border-radius:50%; background:#4ade80; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.7;transform:scale(1.3)} }
+  .fade-in { animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- Demo Banner -->
+<div class="demo-banner text-white text-center py-2 px-4 text-xs font-semibold flex items-center justify-center gap-2">
+  <span class="tag-demo">DEMO</span>
+  <span>TiempoLibre Delivery · Demo comercial · Usa solo datos ficticios</span>
+  <span class="tag-demo">DEMO</span>
+</div>
+
+<div class="flex h-screen overflow-hidden" style="height: calc(100vh - 32px)">
+
+  <!-- Sidebar -->
+  <aside class="sidebar w-56 flex-shrink-0 flex flex-col overflow-y-auto scrollbar-thin">
+    <!-- Logo -->
+    <div class="px-5 py-6 border-b border-white/10">
+      <div class="flex items-center gap-2">
+        <div style="background:#00B5E2; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-weight:800; color:white; font-size:14px;">TL</div>
+        <div>
+          <div class="text-white font-bold text-sm leading-tight">TiempoLibre</div>
+          <div class="text-white/50 text-xs">Tu sistema de reparto</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <button onclick="showPage('dashboard')" class="nav-item active w-full text-left px-3 py-2.5 text-white flex items-center gap-3 text-sm font-medium" id="nav-dashboard">
+        <svg class="w-4 h-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button onclick="showPage('envios')" class="nav-item w-full text-left px-3 py-2.5 text-white/70 flex items-center gap-3 text-sm font-medium" id="nav-envios">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>
+        Mis envíos
+      </button>
+      <button onclick="showPage('nuevo')" class="nav-item w-full text-left px-3 py-2.5 text-white/70 flex items-center gap-3 text-sm font-medium" id="nav-nuevo">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Crear envío
+      </button>
+      <button onclick="showPage('billetera')" class="nav-item w-full text-left px-3 py-2.5 text-white/70 flex items-center gap-3 text-sm font-medium" id="nav-billetera">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        Mi billetera
+      </button>
+      <button onclick="showPage('quejas')" class="nav-item w-full text-left px-3 py-2.5 text-white/70 flex items-center gap-3 text-sm font-medium" id="nav-quejas">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        Quejas y sugerencias
+      </button>
+    </nav>
+
+    <!-- User -->
+    <div class="px-4 py-4 border-t border-white/10">
+      <div class="flex items-center gap-3">
+        <div style="background:#00B5E2; border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; font-size:13px; flex-shrink:0;">AG</div>
+        <div class="min-w-0">
+          <div class="text-white font-semibold text-sm truncate">Cliente Demo</div>
+          <div class="text-white/50 text-xs truncate">cliente@example.invalid</div>
+        </div>
+      </div>
+      <div class="mt-2">
+        <span style="background:rgba(0,181,226,0.2); color:#00B5E2; border:1px solid rgba(0,181,226,0.3); font-size:10px; font-weight:700; letter-spacing:0.5px; padding:2px 8px; border-radius:4px;">CLIENTE</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-y-auto scrollbar-thin bg-gray-50">
+    <div class="max-w-5xl mx-auto px-6 py-6">
+
+      <!-- ===== DASHBOARD ===== -->
+      <div id="page-dashboard" class="page active fade-in">
+        <div class="flex items-end justify-between mb-6">
+          <div>
+            <p class="text-xs font-bold tracking-widest uppercase" style="color:#00B5E2">Buenas tardes, Ana</p>
+            <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 mt-1">Panel de Control de Reparto</h1>
+            <p class="text-gray-500 mt-1 text-sm">Resumen en tiempo real de tu operación.</p>
+          </div>
+          <button onclick="showPage('nuevo')" style="background:#00B5E2; color:white; border-radius:10px; padding:10px 20px; font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; border:none; cursor:pointer; transition: background 0.2s;" onmouseover="this.style.background='#0096BD'" onmouseout="this.style.background='#00B5E2'">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Crear nuevo envío
+          </button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+          <div class="stat-card p-4 col-span-1">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Envíos de hoy</span>
+              <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+            </div>
+            <div class="text-2xl font-bold">7</div>
+          </div>
+          <div class="stat-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Pendientes</span>
+              <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="text-2xl font-bold">3</div>
+          </div>
+          <div class="stat-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">En Ruta</span>
+              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            </div>
+            <div class="text-2xl font-bold">2</div>
+          </div>
+          <div class="stat-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Entregados</span>
+              <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="text-2xl font-bold">12</div>
+          </div>
+          <div class="stat-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Ingresos Hoy</span>
+              <svg class="w-4 h-4" style="color:#00B5E2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="text-2xl font-bold">$3,850</div>
+          </div>
+          <div class="stat-card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-500 font-medium">Gasto en Envíos</span>
+              <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="text-2xl font-bold">$560</div>
+            <p class="text-xs text-gray-400 mt-1">Envíos creados hoy</p>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
+          <h2 class="font-bold text-gray-800 mb-1">Envíos por estado</h2>
+          <p class="text-xs text-gray-400 mb-4">Distribución actual de órdenes</p>
+          <div class="flex items-center justify-center" style="height:220px">
+            <canvas id="donutChart" width="220" height="220"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent Orders -->
+        <div class="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 class="font-bold text-gray-800 mb-1">Envíos recientes</h2>
+          <p class="text-xs text-gray-400 mb-4">Últimas 5 órdenes registradas</p>
+          <div class="space-y-2">
+            <div class="order-row flex items-center justify-between p-3 rounded-xl border border-gray-50 cursor-pointer" onclick="showPage('envios')">
+              <div><div class="font-semibold text-sm">Envío #PED-000031 <span class="text-gray-400 font-normal">— Cliente Demo</span></div><div class="text-xs text-gray-400 mt-0.5">De: Avenida Demo 100 → Para: Calle Demo 201</div></div>
+              <div class="flex items-center gap-3"><span class="text-xs text-gray-400">09 May, 14:32</span><span class="badge-en_ruta text-xs font-semibold px-2 py-0.5 rounded-full">EN_RUTA</span><span class="text-sm font-bold text-gray-700">$180</span></div>
+            </div>
+            <div class="order-row flex items-center justify-between p-3 rounded-xl border border-gray-50 cursor-pointer" onclick="showPage('envios')">
+              <div><div class="font-semibold text-sm">Envío #PED-000030 <span class="text-gray-400 font-normal">— Cliente Demo</span></div><div class="text-xs text-gray-400 mt-0.5">De: Avenida Demo 100 → Para: Calle Demo 202</div></div>
+              <div class="flex items-center gap-3"><span class="text-xs text-gray-400">09 May, 13:15</span><span class="badge-entregado text-xs font-semibold px-2 py-0.5 rounded-full">ENTREGADO</span><span class="text-sm font-bold text-gray-700">$210</span></div>
+            </div>
+            <div class="order-row flex items-center justify-between p-3 rounded-xl border border-gray-50 cursor-pointer" onclick="showPage('envios')">
+              <div><div class="font-semibold text-sm">Envío #PED-000029 <span class="text-gray-400 font-normal">— Cliente Demo</span></div><div class="text-xs text-gray-400 mt-0.5">De: Avenida Demo 100 → Para: Calle Demo 203</div></div>
+              <div class="flex items-center gap-3"><span class="text-xs text-gray-400">09 May, 11:40</span><span class="badge-pendiente text-xs font-semibold px-2 py-0.5 rounded-full">PENDIENTE</span><span class="text-sm font-bold text-gray-700">$150</span></div>
+            </div>
+            <div class="order-row flex items-center justify-between p-3 rounded-xl border border-gray-50 cursor-pointer" onclick="showPage('envios')">
+              <div><div class="font-semibold text-sm">Envío #PED-000028 <span class="text-gray-400 font-normal">— Cliente Demo</span></div><div class="text-xs text-gray-400 mt-0.5">De: Avenida Demo 100 → Para: Calle Demo 204</div></div>
+              <div class="flex items-center gap-3"><span class="text-xs text-gray-400">08 May, 18:22</span><span class="badge-entregado text-xs font-semibold px-2 py-0.5 rounded-full">ENTREGADO</span><span class="text-sm font-bold text-gray-700">$95</span></div>
+            </div>
+            <div class="order-row flex items-center justify-between p-3 rounded-xl border border-gray-50 cursor-pointer" onclick="showPage('envios')">
+              <div><div class="font-semibold text-sm">Envío #PED-000027 <span class="text-gray-400 font-normal">— Cliente Demo</span></div><div class="text-xs text-gray-400 mt-0.5">De: Avenida Demo 100 → Para: Calle Demo 205</div></div>
+              <div class="flex items-center gap-3"><span class="text-xs text-gray-400">08 May, 16:05</span><span class="badge-asignado text-xs font-semibold px-2 py-0.5 rounded-full">ASIGNADO</span><span class="text-sm font-bold text-gray-700">$130</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MIS ENVÍOS ===== -->
+      <div id="page-envios" class="page fade-in">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">Envíos</h1>
+            <p class="text-gray-500 mt-1 text-sm">Gestiona y da seguimiento a los envíos del sistema.</p>
+          </div>
+          <button onclick="showPage('nuevo')" style="background:#00B5E2; color:white; border-radius:10px; padding:10px 20px; font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; border:none; cursor:pointer;" onmouseover="this.style.background='#0096BD'" onmouseout="this.style.background='#00B5E2'">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo envío
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+            <h2 class="font-bold text-gray-800">Listado de envíos</h2>
+            <select style="border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; font-size:13px; color:#374151; outline:none;">
+              <option>Todos los estados</option>
+              <option>PENDIENTE</option><option>ASIGNADO</option><option>EN_RUTA</option><option>ENTREGADO</option><option>CANCELADO</option>
+            </select>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-xs text-gray-400 font-semibold uppercase tracking-wider border-b border-gray-50">
+                  <th class="text-left px-5 py-3">Folio</th>
+                  <th class="text-left px-3 py-3">Ruta</th>
+                  <th class="text-left px-3 py-3">Zona</th>
+                  <th class="text-left px-3 py-3">Monto</th>
+                  <th class="text-left px-3 py-3">Fecha</th>
+                  <th class="text-left px-3 py-3">Estado</th>
+                  <th class="text-right px-5 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000031</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 201</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 1</td><td class="px-3 py-3 text-xs font-semibold">$180.00</td><td class="px-3 py-3 text-xs text-gray-400">09/05/2026 14:32</td><td class="px-3 py-3"><span class="badge-en_ruta text-xs font-semibold px-2 py-1 rounded-full">EN_RUTA</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000030</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 202</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 1</td><td class="px-3 py-3 text-xs font-semibold">$210.00</td><td class="px-3 py-3 text-xs text-gray-400">09/05/2026 13:15</td><td class="px-3 py-3"><span class="badge-entregado text-xs font-semibold px-2 py-1 rounded-full">ENTREGADO</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000029</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 203</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 1</td><td class="px-3 py-3 text-xs font-semibold">$150.00</td><td class="px-3 py-3 text-xs text-gray-400">09/05/2026 11:40</td><td class="px-3 py-3"><span class="badge-pendiente text-xs font-semibold px-2 py-1 rounded-full">PENDIENTE</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000028</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 204</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 2</td><td class="px-3 py-3 text-xs font-semibold">$95.00</td><td class="px-3 py-3 text-xs text-gray-400">08/05/2026 18:22</td><td class="px-3 py-3"><span class="badge-entregado text-xs font-semibold px-2 py-1 rounded-full">ENTREGADO</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000027</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 205</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 1</td><td class="px-3 py-3 text-xs font-semibold">$130.00</td><td class="px-3 py-3 text-xs text-gray-400">08/05/2026 16:05</td><td class="px-3 py-3"><span class="badge-asignado text-xs font-semibold px-2 py-1 rounded-full">ASIGNADO</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000026</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 206</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 2</td><td class="px-3 py-3 text-xs font-semibold">$175.00</td><td class="px-3 py-3 text-xs text-gray-400">08/05/2026 12:30</td><td class="px-3 py-3"><span class="badge-entregado text-xs font-semibold px-2 py-1 rounded-full">ENTREGADO</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+                <tr class="order-row"><td class="px-5 py-3 font-mono font-semibold text-xs">PED-000025</td><td class="px-3 py-3 text-xs"><div class="text-gray-700">Origen: Avenida Demo 100...</div><div class="text-gray-400">Destino: Calle Demo 207</div></td><td class="px-3 py-3 text-xs text-gray-600">Zona 1</td><td class="px-3 py-3 text-xs font-semibold">$120.00</td><td class="px-3 py-3 text-xs text-gray-400">07/05/2026 10:15</td><td class="px-3 py-3"><span class="badge-pendiente text-xs font-semibold px-2 py-1 rounded-full">PENDIENTE</span></td><td class="px-5 py-3 text-right"><button class="text-gray-400 hover:text-gray-600 p-1 rounded"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== CREAR ENVÍO ===== -->
+      <div id="page-nuevo" class="page fade-in">
+        <button onclick="showPage('envios')" class="flex items-center gap-2 text-gray-400 hover:text-gray-700 text-sm mb-4 font-medium">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Volver
+        </button>
+        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 mb-1">Nuevo envío</h1>
+        <p class="text-gray-500 text-sm mb-6">Marca un destino en el mapa ilustrativo para simular la entrega.</p>
+
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-gray-500 font-medium">Envíos disponibles del bloque mensual</div>
+            <div class="text-xs text-gray-400 mt-0.5">Plan ÓPTIMO — 22/35 consumidos.</div>
+          </div>
+          <div class="text-3xl font-extrabold" style="color:#00B5E2">13</div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <!-- Map -->
+          <div class="bg-white rounded-2xl border border-gray-100 p-4">
+            <div class="flex items-center gap-2 mb-3">
+              <svg class="w-4 h-4" style="color:#00B5E2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span class="font-semibold text-sm">Punto de entrega en el mapa</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">Haz clic sobre el mapa donde se entrega el envío. El recuadro representa una zona ilustrativa.</p>
+            <div class="map-container"><div id="map"></div></div>
+          </div>
+
+          <!-- Form -->
+          <div class="bg-white rounded-2xl border border-gray-100 p-4">
+            <h3 class="font-bold text-gray-800 mb-1">Detalles del envío</h3>
+            <p class="text-xs text-gray-400 mb-4">Origen, destino, método de pago y datos del destinatario.</p>
+            <form id="demo-shipment" class="space-y-4" autocomplete="off">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Dirección de recolección</label>
+                <input value="Avenida Demo 100, Guadalajara" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500"/>
+                <p class="text-xs text-gray-400 mt-1">Este es tu domicilio de recolección registrado y no se puede modificar.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Dirección de entrega</label>
+                <input required value="Calle Demo 208" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2" style="--tw-ring-color:#00B5E2"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Nombre del destinatario</label>
+                <input required value="Destinatario Demo" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Teléfono del destinatario</label>
+                <input placeholder="+52 ..." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Correo del destinatario <span class="text-gray-400 font-normal">(opcional)</span></label>
+                <input placeholder="destinatario@example.invalid" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"/>
+              </div>
+              <div>
+                <label for="purchase" class="block text-xs font-semibold text-gray-600 mb-1">Importe de compra (MXN)</label>
+                <input id="purchase" type="number" min="0" step="0.01" value="180" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              </div>
+              <div>
+                <label for="shipping-share" class="block text-xs font-semibold text-gray-600">Parte del envío a cargo del destinatario</label>
+                <input id="shipping-share" type="range" min="0" max="58" value="29" class="w-full">
+                <p id="demo-total" class="text-sm" aria-live="polite"></p>
+              </div>
+              <button type="submit" style="background:#00B5E2; color:white; width:100%; border-radius:10px; padding:11px; font-weight:700; font-size:14px; border:none; cursor:pointer; margin-top:8px;" onmouseover="this.style.background='#0096BD'" onmouseout="this.style.background='#00B5E2'">
+                Crear envío
+              </button>
+              <p id="demo-result" class="text-sm font-semibold" role="status"></p>
+              <button id="demo-next" type="button" class="text-sm font-bold text-cyan-700" hidden>Avanzar seguimiento simulado</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MI BILLETERA ===== -->
+      <div id="page-billetera" class="page fade-in">
+        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 mb-1">Mi Billetera</h1>
+        <p class="text-gray-500 text-sm mb-6">Saldo acumulado por las cobranzas en efectivo que tus repartidores realizan al entregar tus Envíos.</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+          <!-- Wallet card -->
+          <div class="wallet-card rounded-2xl p-8 relative overflow-hidden" style="min-height:200px">
+            <div style="position:absolute;top:-20px;right:-20px;opacity:0.08">
+              <svg width="180" height="180" fill="white" viewBox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            </div>
+            <p class="text-white/80 text-xs font-bold uppercase tracking-widest mb-3">Saldo cobrado</p>
+            <h2 class="text-6xl font-extrabold text-white tracking-tighter">$1,850.00</h2>
+            <div class="mt-6 flex items-center gap-2 text-white/70 text-xs">
+              <div class="pulse-dot"></div>
+              Saldo de ejemplo
+            </div>
+          </div>
+
+          <!-- Envíos del periodo -->
+          <div class="bg-white rounded-2xl border border-gray-100 p-5">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4" style="color:#00B5E2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+              <span class="font-bold text-gray-800">Envíos del periodo</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">Resumen de tu paquete de Envíos contratado.</p>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="border border-gray-100 rounded-xl p-3 text-center"><div class="text-xs text-gray-400">Totales</div><div class="text-2xl font-bold">35</div></div>
+              <div class="border border-gray-100 rounded-xl p-3 text-center"><div class="text-xs text-gray-400">Solicitados</div><div class="text-2xl font-bold">22</div></div>
+              <div class="border border-gray-100 rounded-xl p-3 text-center"><div class="text-xs text-gray-400">Restantes</div><div class="text-2xl font-bold" style="color:#0096BD">13</div></div>
+            </div>
+            <!-- Block grid -->
+            <div class="text-xs font-semibold text-gray-600 mb-2">Bloque actual: <span style="color:#0096BD">13/35 restantes</span> <span class="text-gray-400 font-normal float-right">22/35 usados</span></div>
+            <div id="blockGrid" class="grid gap-1" style="grid-template-columns:repeat(35,minmax(0,1fr))"></div>
+            <div class="text-xs text-gray-400 mt-2">22 Envíos usados de este bloque.</div>
+          </div>
+
+          <!-- Solicitar paquete -->
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 lg:col-span-2">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4" style="color:#00B5E2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+              <span class="font-bold text-gray-800">Solicitar nuevo paquete de entregas</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">¿Te quedaste sin Envíos disponibles? Envía una solicitud y tu administrador la revisará para recargar tu paquete mensual.</p>
+            <button onclick="alert('✅ Solicitud enviada. En producción, tu administrador recibirá una notificación.')" style="background:#00B5E2; color:white; border-radius:10px; padding:10px 20px; font-weight:700; font-size:14px; border:none; cursor:pointer; display:flex; align-items:center; gap:8px;" onmouseover="this.style.background='#0096BD'" onmouseout="this.style.background='#00B5E2'">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>
+              Solicitar nuevo paquete
+            </button>
+          </div>
+        </div>
+
+        <!-- Movimientos -->
+        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-50">
+            <h2 class="font-bold text-gray-800">Movimientos de Billetera</h2>
+            <p class="text-xs text-gray-400">Historial de recargas y pagos de Envíos</p>
+          </div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-xs text-gray-400 font-semibold uppercase tracking-wider border-b border-gray-50"><th class="text-left px-5 py-3">Fecha</th><th class="text-left px-3 py-3">Concepto</th><th class="text-left px-3 py-3">Tipo</th><th class="text-right px-5 py-3">Monto</th></tr></thead>
+            <tbody>
+              <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 text-xs text-gray-400">09 May, 14:32</td><td class="px-3 py-3 text-xs font-medium">Cobro envío PED-000031</td><td class="px-3 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">TOPUP</span></td><td class="px-5 py-3 text-right text-xs font-bold text-green-600">+$180.00</td></tr>
+              <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 text-xs text-gray-400">09 May, 13:15</td><td class="px-3 py-3 text-xs font-medium">Cobro envío PED-000030</td><td class="px-3 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">TOPUP</span></td><td class="px-5 py-3 text-right text-xs font-bold text-green-600">+$210.00</td></tr>
+              <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 text-xs text-gray-400">08 May, 18:22</td><td class="px-3 py-3 text-xs font-medium">Cobro envío PED-000028</td><td class="px-3 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">TOPUP</span></td><td class="px-5 py-3 text-right text-xs font-bold text-green-600">+$95.00</td></tr>
+              <tr class="order-row border-b border-gray-50"><td class="px-5 py-3 text-xs text-gray-400">08 May, 12:30</td><td class="px-3 py-3 text-xs font-medium">Cobro envío PED-000026</td><td class="px-3 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">TOPUP</span></td><td class="px-5 py-3 text-right text-xs font-bold text-green-600">+$175.00</td></tr>
+              <tr class="order-row"><td class="px-5 py-3 text-xs text-gray-400">07 May, 09:00</td><td class="px-3 py-3 text-xs font-medium">Reembolso envío PED-000020</td><td class="px-3 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">REEMBOLSO</span></td><td class="px-5 py-3 text-right text-xs font-bold text-blue-600">+$90.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== QUEJAS Y SUGERENCIAS ===== -->
+      <div id="page-quejas" class="page fade-in">
+        <div class="max-w-lg mx-auto">
+          <div class="flex items-center gap-3 mb-2">
+            <svg class="w-7 h-7" style="color:#00B5E2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">Quejas y Sugerencias</h1>
+          </div>
+          <p class="text-gray-500 text-sm mb-6">Cuéntanos cómo mejorar TiempoLibre o reporta una experiencia que no fue la esperada. Este formulario es una simulación.</p>
+
+          <div class="bg-white rounded-2xl border border-gray-100 p-6">
+            <h3 class="font-bold text-gray-800 mb-1">Nuevo mensaje</h3>
+            <p class="text-xs text-gray-400 mb-4">Selecciona el tipo y describe el caso con el detalle que puedas.</p>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Tipo</label>
+                <select class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                  <option>Sugerencia</option><option>Queja</option><option>Consulta</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Asunto</label>
+                <input placeholder="Ej. Problemas con el cobro en efectivo" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Mensaje</label>
+                <textarea placeholder="Describe la situación con el mayor detalle posible..." rows="5" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"></textarea>
+              </div>
+              <button onclick="alert('✅ Mensaje enviado. En producción, llegará directo al equipo de soporte.')" style="background:#00B5E2; color:white; width:100%; border-radius:10px; padding:11px; font-weight:700; font-size:14px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;" onmouseover="this.style.background='#0096BD'" onmouseout="this.style.background='#00B5E2'">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Enviar al equipo de soporte
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// The simulation keeps only a folio and status in this page.
+const shipment = document.getElementById('demo-shipment');
+const purchase = document.getElementById('purchase');
+const share = document.getElementById('shipping-share');
+const total = document.getElementById('demo-total');
+const result = document.getElementById('demo-result');
+const next = document.getElementById('demo-next');
+const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+const statuses = ['Pendiente', 'Asignado', 'En ruta', 'Entregado'];
+let folio = 0;
+let statusIndex = 0;
+
+function updateTotal() {
+  const recipientShare = Number(share.value);
+  total.textContent = 'Envío de ejemplo: ' + money.format(58)
+    + ' · Comercio: ' + money.format(58 - recipientShare)
+    + ' · Destinatario: ' + money.format(recipientShare)
+    + ' · Total a cobrar: ' + money.format(Number(purchase.value) + recipientShare);
+}
+
+function updateTracking() {
+  result.textContent = 'Envío simulado DEMO-' + String(folio).padStart(3, '0')
+    + ' · ' + statuses[statusIndex];
+  next.hidden = statusIndex === statuses.length - 1;
+}
+
+shipment.addEventListener('input', updateTotal);
+shipment.addEventListener('submit', event => {
+  event.preventDefault();
+  folio += 1;
+  statusIndex = 0;
+  updateTracking();
+});
+next.addEventListener('click', () => {
+  statusIndex += 1;
+  updateTracking();
+});
+updateTotal();
+
+// Navigation
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.remove('active');
+    n.style.color = 'rgba(255,255,255,0.7)';
+  });
+  document.getElementById('page-' + id).classList.add('active');
+  const nav = document.getElementById('nav-' + id);
+  if (nav) { nav.classList.add('active'); nav.style.color = 'white'; }
+  if (id === 'nuevo' && !window.mapInit) initMap();
+}
+
+// Donut Chart
+const ctx = document.getElementById('donutChart').getContext('2d');
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    labels: ['PENDIENTE', 'ASIGNADO', 'EN_RUTA', 'ENTREGADO', 'CANCELADO'],
+    datasets: [{ data: [3, 2, 2, 12, 1], backgroundColor: ['#00B5E2','#0B1E2D','#10b981','#f59e0b','#ef4444'], borderWidth: 0, hoverOffset: 4 }]
+  },
+  options: { cutout: '65%', plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'Plus Jakarta Sans' }, padding: 16 } } }, animation: { animateRotate: true, duration: 800 } }
+});
+
+// Block grid
+const grid = document.getElementById('blockGrid');
+for (let i = 0; i < 35; i++) {
+  const cell = document.createElement('div');
+  cell.className = 'block-cell ' + (i < 13 ? 'block-rem' : 'block-used');
+  grid.appendChild(cell);
+}
+
+// Map
+let mapInit = false;
+function initMap() {
+  mapInit = true;
+  const map = L.map('map').setView([20.676, -103.347], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  const zone = L.polygon([[20.700,-103.380],[20.700,-103.310],[20.650,-103.310],[20.650,-103.380]], { color: '#00B5E2', fillColor: '#00B5E2', fillOpacity: 0.1, weight: 2 }).addTo(map);
+  map.on('click', function(e) {
+    map.eachLayer(l => { if (l instanceof L.Marker) map.removeLayer(l); });
+    L.marker(e.latlng).addTo(map).bindPopup('Punto de entrega seleccionado').openPopup();
+  });
+  window.mapInit = true;
+}
+
+// Set initial nav colors
+document.getElementById('nav-dashboard').style.color = 'white';
+['envios','nuevo','billetera','quejas'].forEach(id => {
+  document.getElementById('nav-' + id).style.color = 'rgba(255,255,255,0.7)';
+});
+</script>
+</body>
+</html>
